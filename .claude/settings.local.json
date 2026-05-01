@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(brew --version)",
+      "Bash(git --version)",
+      "Bash(xcode-select -p)",
+      "Bash(curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh)",
+      "Bash(bash)"
+    ]
+  }
+}

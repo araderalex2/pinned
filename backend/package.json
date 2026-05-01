@@ -1,0 +1,30 @@
+{
+  "name": "pinned-backend",
+  "version": "1.0.0",
+  "description": "Video-to-place extraction pipeline for Pinned",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@supabase/supabase-js": "^2.105.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "form-data": "^4.0.2",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.104.0",
+    "playwright": "^1.59.1",
+    "youtube-dl-exec": "^3.0.12"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
