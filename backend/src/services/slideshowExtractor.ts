@@ -70,7 +70,7 @@ export async function extractSlideshow(url: string): Promise<SlideshowResult> {
           if (el) { el.click(); return true }
         }
         // Fallback: send ArrowRight to body
-        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, keyCode: 39 }))
+        document.body.dispatchEvent(new (window as any).KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, keyCode: 39 }))
         return false
       })
       await page.waitForTimeout(500)
