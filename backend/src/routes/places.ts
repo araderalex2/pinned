@@ -59,7 +59,7 @@ router.post('/process', async (req: Request, res: Response) => {
   })
 })
 
-async function processVideo(jobId: string, userId: string, url: string, supabase: ReturnType<typeof createClient>) {
+async function processVideo(jobId: string, userId: string, url: string, supabase: any) {
   const update = (status: string, extra?: object) =>
     supabase.from('processing_jobs').update({ status, ...extra }).eq('id', jobId)
 
