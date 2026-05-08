@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { createClient } from '@supabase/supabase-js'
 import { downloadAudio } from '../services/extractor'
-import { transcribeAudio } from '../services/transcribe'
+import { transcribeAudio, extractSubtitles } from '../services/transcribe'
 import { parsePlaces } from '../services/placeParser'
 import { geocodePlace } from '../services/geocoder'
 import { extractSlideshow } from '../services/slideshowExtractor'
@@ -78,9 +78,16 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
       thumbnailUrl = media.thumbnailUrl
       title = media.title
 
-      // Step 2: Transcribe (best-effort)
+      // Step 2: Try subtitles first (fast, no API), then Whisper
       try {
-        transcript = await transcribeAudio(media.audioPath)
+        const subs = await extractSubtitles(url)
+        if (subs) {
+          transcript = subs
+          console.log(`Job ${jobId}: subtitles extracted (${subs.length} chars)`)
+        } else {
+          transcript = await transcribeAudio(media.audioPath)
+          console.log(`Job ${jobId}: transcribed via Whisper (${transcript.length} chars)`)
+        }
       } catch (err: any) {
         console.warn(`Transcription failed for job ${jobId}: ${err.message} — using title only`)
       }
