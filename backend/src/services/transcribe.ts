@@ -9,7 +9,12 @@ const execFileAsync = promisify(execFile)
 
 let _openai: OpenAI | null = null
 function getOpenAI() {
-  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY!, timeout: 60000, maxRetries: 2 })
+  if (!_openai) _openai = new OpenAI({
+    apiKey: process.env.GROQ_API_KEY!,
+    baseURL: 'https://api.groq.com/openai/v1',
+    timeout: 60000,
+    maxRetries: 2,
+  })
   return _openai
 }
 
@@ -61,7 +66,7 @@ export async function transcribeAudio(audioPath: string): Promise<string> {
 
   const response = await getOpenAI().audio.transcriptions.create({
     file: fs.createReadStream(audioPath),
-    model: 'whisper-1',
+    model: 'whisper-large-v3',
     response_format: 'text',
   })
 
