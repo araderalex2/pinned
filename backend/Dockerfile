@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y python3 python3-pip ffmpeg && \
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 COPY . .
 RUN npm run build
