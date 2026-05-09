@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { downloadAudio } from '../services/extractor'
 import { transcribeAudio, extractSubtitles } from '../services/transcribe'
 import { parsePlaces } from '../services/placeParser'
+import { parseEvents } from '../services/eventParser'
 import { geocodePlace } from '../services/geocoder'
 import { extractSlideshow } from '../services/slideshowExtractor'
 
@@ -103,12 +104,18 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
       }
     }
 
-    // Step 3: Parse all places from transcript + title
-    const parsedPlaces = await parsePlaces(transcript, title)
-    if (!parsedPlaces.length) throw new Error('Could not identify any places in this video')
+    // Step 3: Parse places AND events from transcript + title (in parallel)
+    const [parsedPlaces, parsedEvents] = await Promise.all([
+      parsePlaces(transcript, title),
+      parseEvents(transcript, title).catch(() => []),
+    ])
+
+    if (!parsedPlaces.length && !parsedEvents.length) {
+      throw new Error('Could not identify any places or events in this video')
+    }
 
     // Step 4 & 5: Geocode each place and save
-    let savedCount = 0
+    let savedPlaces = 0
     let lastPlaceId: string | null = null
 
     for (const parsed of parsedPlaces) {
@@ -146,11 +153,52 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
         continue
       }
 
-      savedCount++
+      savedPlaces++
       lastPlaceId = place.id
     }
 
-    if (savedCount === 0) throw new Error('Could not save any places from this video')
+    // Step 6: Geocode each event venue and save
+    let savedEvents = 0
+    for (const event of parsedEvents) {
+      try {
+        const geo = await geocodePlace({
+          name: event.venue_name,
+          city: event.city,
+          country: event.country,
+          category: 'other',
+          description: '',
+          highlights: [],
+          confidence: 1,
+        }).catch(() => null)
+
+        await supabase.from('events').insert({
+          user_id: userId,
+          event_name: event.event_name,
+          performer: event.performer ?? null,
+          venue_name: geo?.name ?? event.venue_name,
+          description: event.description,
+          city: geo?.city ?? event.city,
+          country: geo?.country ?? event.country,
+          address: geo?.address ?? null,
+          lat: geo?.lat ?? null,
+          lng: geo?.lng ?? null,
+          event_date: event.event_date,
+          event_time: event.event_time,
+          source_url: url,
+          photo_urls: geo?.photoUrls ?? [],
+          google_place_id: geo?.googlePlaceId ?? null,
+        })
+
+        savedEvents++
+        console.log(`Job ${jobId}: saved event "${event.event_name}" at ${event.venue_name}`)
+      } catch (err: any) {
+        console.warn(`Failed to save event "${event.event_name}":`, err.message)
+      }
+    }
+
+    if (savedPlaces === 0 && savedEvents === 0) {
+      throw new Error('Could not save any places or events from this video')
+    }
 
     await update('done', { place_id: lastPlaceId })
 
