@@ -111,11 +111,18 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
       }
     }
 
+    console.log(`Job ${jobId}: transcript=${transcript.length} chars, title=${title}, description=${description?.length ?? 0} chars`)
+
     // Step 3: Parse places AND events from transcript + title + caption (in parallel)
     const [parsedPlaces, parsedEvents] = await Promise.all([
       parsePlaces(transcript, title, description),
-      parseEvents(transcript, title, description).catch(() => []),
+      parseEvents(transcript, title, description).catch((e) => {
+        console.warn(`Job ${jobId}: event parsing error: ${e.message}`)
+        return []
+      }),
     ])
+
+    console.log(`Job ${jobId}: found ${parsedPlaces.length} place(s), ${parsedEvents.length} event(s)`)
 
     if (!parsedPlaces.length && !parsedEvents.length) {
       throw new Error('Could not identify any places or events in this video')
@@ -197,9 +204,9 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
         })
 
         savedEvents++
-        console.log(`Job ${jobId}: saved event "${event.event_name}" at ${event.venue_name}`)
+        console.log(`Job ${jobId}: saved event "${event.event_name}" at ${event.venue_name} on ${event.event_date}`)
       } catch (err: any) {
-        console.warn(`Failed to save event "${event.event_name}":`, err.message)
+        console.error(`Job ${jobId}: failed to save event "${event.event_name}":`, err.message)
       }
     }
 
@@ -210,6 +217,7 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
     await update('done', { place_id: lastPlaceId })
 
   } catch (err: any) {
+    console.error(`Job ${jobId} failed:`, err.message)
     await update('failed', { error: err.message ?? 'Unknown error' })
   } finally {
     media?.cleanup()

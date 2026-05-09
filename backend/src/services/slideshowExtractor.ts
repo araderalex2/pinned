@@ -124,7 +124,7 @@ export async function extractSlideshow(url: string): Promise<SlideshowResult> {
       throw new Error('Could not capture any slideshow images')
     }
 
-    console.log(`   Captured ${imageBuffers.length} slide image(s)`)
+    console.log(`   Captured ${imageBuffers.length} slide image(s), sending to Claude Vision...`)
 
     // Send all images to Claude Vision in one call
     const imageBlocks = imageBuffers.slice(0, 8).map(buf => ({
@@ -160,6 +160,7 @@ Important notes:
     })
 
     const transcript = message.content[0].type === 'text' ? message.content[0].text : ''
+    console.log(`   Claude Vision transcript (${transcript.length} chars): ${transcript.slice(0, 200)}`)
     return { transcript, thumbnailUrl, title }
 
   } finally {
