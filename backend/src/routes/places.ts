@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { createClient } from '@supabase/supabase-js'
-import { downloadAudio } from '../services/extractor'
+import { downloadAudio, fetchDescription } from '../services/extractor'
 import { transcribeAudio, extractSubtitles } from '../services/transcribe'
 import { parsePlaces } from '../services/placeParser'
 import { parseEvents } from '../services/eventParser'
@@ -72,12 +72,15 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
     // Step 1: Download audio + get thumbnail (falls back to Playwright for photo slideshows)
     let transcript = ''
     let title: string | null = null
+    let description: string | null = null
     let thumbnailUrl: string | null = null
 
     try {
       media = await downloadAudio(url)
       thumbnailUrl = media.thumbnailUrl
       title = media.title
+      description = media.description
+      if (description) console.log(`Job ${jobId}: caption extracted (${description.length} chars)`)
 
       // Step 2: Try subtitles first (fast, no API), then Whisper
       try {
@@ -95,19 +98,23 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
     } catch (err: any) {
       if (err.isSlideshow) {
         console.log(`Job ${jobId}: photo slideshow detected — using Playwright vision fallback`)
-        const slideshow = await extractSlideshow(url)
+        const [slideshow, slideshowDesc] = await Promise.all([
+          extractSlideshow(url),
+          fetchDescription(url).catch(() => null),
+        ])
         transcript = slideshow.transcript
         title = slideshow.title
         thumbnailUrl = slideshow.thumbnailUrl
+        description = slideshowDesc
       } else {
         throw err
       }
     }
 
-    // Step 3: Parse places AND events from transcript + title (in parallel)
+    // Step 3: Parse places AND events from transcript + title + caption (in parallel)
     const [parsedPlaces, parsedEvents] = await Promise.all([
-      parsePlaces(transcript, title),
-      parseEvents(transcript, title).catch(() => []),
+      parsePlaces(transcript, title, description),
+      parseEvents(transcript, title, description).catch(() => []),
     ])
 
     if (!parsedPlaces.length && !parsedEvents.length) {

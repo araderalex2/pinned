@@ -12,6 +12,7 @@ export interface ExtractedMedia {
   audioPath: string
   thumbnailUrl: string | null
   title: string | null
+  description: string | null
   platform: Platform
   cleanup: () => void
 }
@@ -90,13 +91,39 @@ export async function downloadAudio(url: string): Promise<ExtractedMedia & { pla
     throw new Error('yt-dlp completed but audio file not found')
   }
 
-  const oembed = await fetchOEmbed(url, platform)
+  const [oembed, description] = await Promise.all([
+    fetchOEmbed(url, platform),
+    fetchDescription(url),
+  ])
 
   return {
     audioPath,
     thumbnailUrl: oembed.thumbnail,
     title: oembed.title,
+    description,
     platform,
     cleanup: () => fs.rmSync(tmpDir, { recursive: true, force: true }),
+  }
+}
+
+// Fetch the full post caption/description using yt-dlp (fast, skip-download)
+export async function fetchDescription(url: string): Promise<string | null> {
+  try {
+    const ytDlpBin = ['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp'].find(p => {
+      try { require('fs').accessSync(p); return true } catch { return false }
+    }) ?? 'yt-dlp'
+
+    const { stdout } = await execFileAsync(ytDlpBin, [
+      '--print', 'description',
+      '--skip-download',
+      '--no-playlist',
+      '--quiet',
+      url,
+    ], { timeout: 15000 })
+
+    const desc = stdout.trim()
+    return desc && desc.length > 5 ? desc : null
+  } catch {
+    return null
   }
 }

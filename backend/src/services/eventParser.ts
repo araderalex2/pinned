@@ -54,11 +54,13 @@ JSON format:
 
 export async function parseEvents(
   transcript: string,
-  videoTitle: string | null
+  videoTitle: string | null,
+  postCaption?: string | null
 ): Promise<ParsedEvent[]> {
   const userContent = [
     videoTitle ? `Video title: "${videoTitle}"` : null,
-    `Transcript:\n${transcript.slice(0, 6000)}`,
+    postCaption ? `Post caption:\n${postCaption}` : null,
+    transcript ? `Transcript:\n${transcript.slice(0, 6000)}` : null,
   ].filter(Boolean).join('\n\n')
 
   const message = await getAnthropic().messages.create({
