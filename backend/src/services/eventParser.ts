@@ -15,6 +15,7 @@ export interface ParsedEvent {
   event_date: string | null
   event_time: string | null
   description: string
+  event_category: 'concert' | 'sports' | 'theater' | 'comedy' | 'club' | 'festival' | 'art' | 'popup' | 'other'
   confidence: number
 }
 
@@ -37,6 +38,16 @@ Rules:
   - If only month/day given, assume year 2026
 - event_time: time if mentioned (e.g. "10:00 PM"), null if not
 - description: one sentence about the event
+- event_category: one of: concert, sports, theater, comedy, club, festival, art, popup, other
+  - concert: live music, bands, solo artists performing
+  - sports: games, matches, tournaments, races
+  - theater: broadway, plays, musicals, opera, dance
+  - comedy: stand-up, improv, comedy shows
+  - club: DJ sets, raves, club nights, b2b sets, techno/house parties
+  - festival: multi-day events, outdoor festivals, music festivals, markets
+  - art: gallery openings, exhibitions, art shows
+  - popup: pop-up shops, pop-up restaurants, brand activations
+  - other: anything else
 - confidence: 0-1. Use 0.85+ when venue and date are both clearly stated. Use < 0.65 only if both are truly ambiguous.
 - Omit events with confidence < 0.65
 - If no qualifying events found, return []
@@ -58,6 +69,7 @@ JSON format:
     "country": "United States",
     "event_date": "July 24, 2026",
     "event_time": null,
+    "event_category": "club",
     "description": "All-night b2b DJ set from UK house music artists Max Dean and Luke Dean at Brooklyn Storehouse.",
     "confidence": 0.92
   }

@@ -198,6 +198,7 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
           lng: geo?.lng ?? null,
           event_date: event.event_date,
           event_time: event.event_time,
+          event_category: event.event_category ?? 'other',
           source_url: url,
           photo_urls: geo?.photoUrls ?? [],
           google_place_id: geo?.googlePlaceId ?? null,
