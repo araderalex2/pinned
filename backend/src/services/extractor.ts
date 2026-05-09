@@ -149,12 +149,11 @@ export async function fetchLocationTag(url: string): Promise<string | null> {
 
     const info = JSON.parse(stdout.trim())
 
-    // Log all top-level string/object keys so we can see what's available
-    const debugKeys = Object.entries(info)
-      .filter(([, v]) => v !== null && v !== undefined && v !== 'NA' && v !== '')
-      .filter(([k]) => /loc|poi|place|addr|geo|position|tag/i.test(k))
-      .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-    if (debugKeys.length > 0) console.log('[location-debug]', debugKeys.join(' | '))
+    // Log ALL top-level string fields (short ones) so we can find where location lives
+    const allStringFields = Object.entries(info)
+      .filter(([, v]) => typeof v === 'string' && v.length > 0 && v !== 'NA' && v.length < 200)
+      .map(([k, v]) => `${k}="${v}"`)
+    console.log('[ytdlp-fields]', allStringFields.join(' | '))
 
     // Try every field path where yt-dlp / TikTok might store the POI name
     const candidates: (string | undefined | null)[] = [
