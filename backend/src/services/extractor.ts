@@ -132,7 +132,7 @@ export async function fetchDescription(url: string): Promise<string | null> {
 }
 
 // Fetch the TikTok/Instagram location tag (e.g. "Now Now NoHo · New York")
-// yt-dlp exposes this as the `location` field in its info dict
+// Uses --dump-json to search multiple field paths where yt-dlp might store POI info
 export async function fetchLocationTag(url: string): Promise<string | null> {
   try {
     const ytDlpBin = ['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp'].find(p => {
@@ -140,16 +140,40 @@ export async function fetchLocationTag(url: string): Promise<string | null> {
     }) ?? 'yt-dlp'
 
     const { stdout } = await execFileAsync(ytDlpBin, [
-      '--print', 'location',
+      '--dump-json',
       '--skip-download',
       '--no-playlist',
       '--quiet',
       url,
-    ], { timeout: 15000 })
+    ], { timeout: 20000 })
 
-    const loc = stdout.trim()
-    // yt-dlp prints "NA" when the field is missing
-    return loc && loc !== 'NA' && loc.length > 1 ? loc : null
+    const info = JSON.parse(stdout.trim())
+
+    // Log all top-level string/object keys so we can see what's available
+    const debugKeys = Object.entries(info)
+      .filter(([, v]) => v !== null && v !== undefined && v !== 'NA' && v !== '')
+      .filter(([k]) => /loc|poi|place|addr|geo|position|tag/i.test(k))
+      .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    if (debugKeys.length > 0) console.log('[location-debug]', debugKeys.join(' | '))
+
+    // Try every field path where yt-dlp / TikTok might store the POI name
+    const candidates: (string | undefined | null)[] = [
+      info.location,
+      info.poi_name,
+      info.poi_info?.poi_name,
+      info.poi_info?.name,
+      info.poi_info?.address,
+      info.author?.poi_name,
+      info.uploader_poi,
+    ]
+
+    for (const c of candidates) {
+      if (c && typeof c === 'string' && c !== 'NA' && c.trim().length > 1) {
+        return c.trim()
+      }
+    }
+
+    return null
   } catch {
     return null
   }
