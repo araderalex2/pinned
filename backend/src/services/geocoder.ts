@@ -59,7 +59,7 @@ export async function geocodePlace(parsed: ParsedPlace): Promise<GeocodedPlace |
 
   const comps = top.addressComponents ?? []
   const getComp = (type: string) =>
-    comps.find(c => c.types.includes(type))?.longText ?? ''
+    comps.find(c => (c.types ?? []).includes(type))?.longText ?? ''
 
   const city = getComp('locality') || getComp('administrative_area_level_1') || parsed.city
   const country = getComp('country') || parsed.country
