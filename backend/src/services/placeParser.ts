@@ -11,7 +11,7 @@ export interface ParsedPlace {
   city: string
   country: string
   neighborhood?: string
-  category: 'restaurant' | 'cafe' | 'bar' | 'club' | 'shop' | 'museum' | 'gallery' | 'hotel' | 'other'
+  category: 'restaurant' | 'cafe' | 'bar' | 'club' | 'shop' | 'popup' | 'museum' | 'gallery' | 'hotel' | 'other'
   description: string
   highlights: string[]
   confidence: number
@@ -26,7 +26,8 @@ Rules:
 - Extract every distinct place mentioned (single video = 1 place, listicle = multiple)
 - description: one sentence summary of what makes this place worth visiting
 - highlights: exactly 3 short bullet points (each under 12 words) describing the PLACE itself — what it sells or offers, the vibe/atmosphere, and a practical detail like location or who it's for. Never describe a specific product, dish, or item shown in the video.
-- category must be one of: restaurant, cafe, bar, club, shop, museum, gallery, hotel, other
+- category must be one of: restaurant, cafe, bar, club, shop, popup, museum, gallery, hotel, other
+  - popup: temporary pop-up shops, pop-up restaurants, brand pop-ups, market stalls
 - neighborhood: street, neighborhood, or district mentioned for this place (e.g. "Washington St West Village", "Grand St SoHo") — include if mentioned, omit if not
 - confidence is 0-1. Use < 0.6 when a place is ambiguous or not clearly named
 - Omit any place with confidence < 0.6
