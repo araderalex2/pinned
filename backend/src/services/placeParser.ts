@@ -50,9 +50,11 @@ JSON format:
 export async function parsePlaces(
   transcript: string,
   videoTitle: string | null,
-  postCaption?: string | null
+  postCaption?: string | null,
+  locationTag?: string | null
 ): Promise<ParsedPlace[]> {
   const userContent = [
+    locationTag ? `Location tag: "${locationTag}"` : null,
     videoTitle ? `Video title: "${videoTitle}"` : null,
     postCaption ? `Post caption:\n${postCaption}` : null,
     transcript ? `Transcript:\n${transcript.slice(0, 6000)}` : null,

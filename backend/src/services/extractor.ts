@@ -13,6 +13,7 @@ export interface ExtractedMedia {
   thumbnailUrl: string | null
   title: string | null
   description: string | null
+  locationTag: string | null
   platform: Platform
   cleanup: () => void
 }
@@ -91,9 +92,10 @@ export async function downloadAudio(url: string): Promise<ExtractedMedia & { pla
     throw new Error('yt-dlp completed but audio file not found')
   }
 
-  const [oembed, description] = await Promise.all([
+  const [oembed, description, locationTag] = await Promise.all([
     fetchOEmbed(url, platform),
     fetchDescription(url),
+    fetchLocationTag(url),
   ])
 
   return {
@@ -101,6 +103,7 @@ export async function downloadAudio(url: string): Promise<ExtractedMedia & { pla
     thumbnailUrl: oembed.thumbnail,
     title: oembed.title,
     description,
+    locationTag,
     platform,
     cleanup: () => fs.rmSync(tmpDir, { recursive: true, force: true }),
   }
@@ -123,6 +126,30 @@ export async function fetchDescription(url: string): Promise<string | null> {
 
     const desc = stdout.trim()
     return desc && desc.length > 5 ? desc : null
+  } catch {
+    return null
+  }
+}
+
+// Fetch the TikTok/Instagram location tag (e.g. "Now Now NoHo · New York")
+// yt-dlp exposes this as the `location` field in its info dict
+export async function fetchLocationTag(url: string): Promise<string | null> {
+  try {
+    const ytDlpBin = ['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp'].find(p => {
+      try { require('fs').accessSync(p); return true } catch { return false }
+    }) ?? 'yt-dlp'
+
+    const { stdout } = await execFileAsync(ytDlpBin, [
+      '--print', 'location',
+      '--skip-download',
+      '--no-playlist',
+      '--quiet',
+      url,
+    ], { timeout: 15000 })
+
+    const loc = stdout.trim()
+    // yt-dlp prints "NA" when the field is missing
+    return loc && loc !== 'NA' && loc.length > 1 ? loc : null
   } catch {
     return null
   }

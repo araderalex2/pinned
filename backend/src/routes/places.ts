@@ -73,6 +73,7 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
     let transcript = ''
     let title: string | null = null
     let description: string | null = null
+    let locationTag: string | null = null
     let thumbnailUrl: string | null = null
 
     try {
@@ -80,7 +81,10 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
       thumbnailUrl = media.thumbnailUrl
       title = media.title
       description = media.description
+      locationTag = media.locationTag
       if (description) console.log(`Job ${jobId}: caption extracted (${description.length} chars)`)
+      if (locationTag) console.log(`Job ${jobId}: location tag: "${locationTag}"`)
+
 
       // Step 2: Try subtitles first (fast, no API), then Whisper
       try {
@@ -98,25 +102,31 @@ async function processVideo(jobId: string, userId: string, url: string, supabase
     } catch (err: any) {
       if (err.isSlideshow) {
         console.log(`Job ${jobId}: photo slideshow detected — using Playwright vision fallback`)
-        const [slideshow, slideshowDesc] = await Promise.all([
+        const { fetchLocationTag } = await import('../services/extractor')
+        const [slideshow, slideshowDesc, slideshowLoc] = await Promise.all([
           extractSlideshow(url),
           fetchDescription(url).catch(() => null),
+          fetchLocationTag(url).catch(() => null),
         ])
         transcript = slideshow.transcript
         title = slideshow.title
         thumbnailUrl = slideshow.thumbnailUrl
         description = slideshowDesc
+        locationTag = slideshowLoc
+        if (locationTag) console.log(`Job ${jobId}: location tag (slideshow): "${locationTag}"`)
+
       } else {
         throw err
       }
     }
 
-    console.log(`Job ${jobId}: transcript=${transcript.length} chars, title=${title}, description=${description?.length ?? 0} chars`)
+    console.log(`Job ${jobId}: transcript=${transcript.length} chars, title=${title}, description=${description?.length ?? 0} chars, location="${locationTag ?? 'none'}"`)
 
-    // Step 3: Parse places AND events from transcript + title + caption (in parallel)
+
+    // Step 3: Parse places AND events from transcript + title + caption + location tag (in parallel)
     const [parsedPlaces, parsedEvents] = await Promise.all([
-      parsePlaces(transcript, title, description),
-      parseEvents(transcript, title, description).catch((e) => {
+      parsePlaces(transcript, title, description, locationTag),
+      parseEvents(transcript, title, description, locationTag).catch((e) => {
         console.warn(`Job ${jobId}: event parsing error: ${e.message}`)
         return []
       }),
