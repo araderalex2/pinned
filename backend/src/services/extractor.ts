@@ -132,8 +132,9 @@ export async function fetchDescription(url: string): Promise<string | null> {
 }
 
 // Fetch the TikTok/Instagram location tag (e.g. "Now Now NoHo · New York")
-// Uses --dump-json to search multiple field paths where yt-dlp might store POI info
+// Tries yt-dlp first; falls back to scraping TikTok's page HTML directly
 export async function fetchLocationTag(url: string): Promise<string | null> {
+  // Attempt 1: yt-dlp --dump-json
   try {
     const ytDlpBin = ['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp'].find(p => {
       try { require('fs').accessSync(p); return true } catch { return false }
@@ -149,13 +150,16 @@ export async function fetchLocationTag(url: string): Promise<string | null> {
 
     const info = JSON.parse(stdout.trim())
 
-    // Log ALL top-level string fields (short ones) so we can find where location lives
-    const allStringFields = Object.entries(info)
-      .filter(([, v]) => typeof v === 'string' && v.length > 0 && v !== 'NA' && v.length < 200)
-      .map(([k, v]) => `${k}="${v}"`)
-    console.log('[ytdlp-fields]', allStringFields.join(' | '))
+    // Log all top-level fields so we can spot where TikTok stores the POI tag
+    const allFields = Object.entries(info)
+      .filter(([, v]) => v !== null && v !== undefined && v !== 'NA' && v !== '')
+      .filter(([, v]) => typeof v !== 'object' || (typeof v === 'object' && Object.keys(v as object).length > 0))
+      .map(([k, v]) => {
+        const val = typeof v === 'string' ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)
+        return `${k}=${val}`
+      })
+    console.log('[ytdlp-fields]', allFields.join(' | '))
 
-    // Try every field path where yt-dlp / TikTok might store the POI name
     const candidates: (string | undefined | null)[] = [
       info.location,
       info.poi_name,
@@ -171,9 +175,90 @@ export async function fetchLocationTag(url: string): Promise<string | null> {
         return c.trim()
       }
     }
+  } catch (err: any) {
+    console.warn('[location-ytdlp-error]', err.message?.slice(0, 200) ?? err)
+  }
 
-    return null
-  } catch {
+  // Attempt 2: scrape the TikTok page HTML for embedded POI JSON
+  if (/tiktok\.com/i.test(url)) {
+    try {
+      const scraped = await scrapeTikTokPoi(url)
+      if (scraped) {
+        console.log(`[tiktok-scrape] found POI: "${scraped}"`)
+        return scraped
+      }
+    } catch (err: any) {
+      console.warn('[location-scrape-error]', err.message?.slice(0, 200) ?? err)
+    }
+  }
+
+  return null
+}
+
+// Scrape TikTok page HTML for embedded video metadata JSON
+async function scrapeTikTokPoi(url: string): Promise<string | null> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(10000),
+  })
+
+  if (!res.ok) {
+    console.warn(`[tiktok-scrape] HTTP ${res.status}`)
     return null
   }
+
+  const html = await res.text()
+
+  // TikTok embeds video metadata in this script tag
+  const match = html.match(/<script[^>]+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/)
+  if (!match) {
+    console.warn('[tiktok-scrape] rehydration script tag not found')
+    return null
+  }
+
+  let data: any
+  try {
+    data = JSON.parse(match[1])
+  } catch {
+    console.warn('[tiktok-scrape] could not parse embedded JSON')
+    return null
+  }
+
+  // Walk common paths where TikTok stores POI info
+  const itemStruct = data?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct
+  const poi = itemStruct?.poi || itemStruct?.anchors?.find((a: any) => a?.type === 30 || a?.thumbnail) // type 30 = POI
+  const anchorPoi = itemStruct?.anchors?.[0]
+
+  // Try several places
+  const tries = [
+    poi?.name,
+    poi?.poi_name,
+    poi?.poi_info?.poi_name,
+    anchorPoi?.name,
+    anchorPoi?.description,
+    itemStruct?.locationCreated,
+  ].filter(Boolean) as string[]
+
+  for (const t of tries) {
+    if (typeof t === 'string' && t.trim().length > 1) {
+      // Add city if available
+      const city = itemStruct?.poi?.city_name || itemStruct?.poi?.address || ''
+      return city ? `${t.trim()} · ${city}` : t.trim()
+    }
+  }
+
+  // Last resort: dump a small slice of the JSON keys for debugging
+  if (itemStruct) {
+    const keys = Object.keys(itemStruct).slice(0, 30).join(',')
+    console.log('[tiktok-scrape] itemStruct keys:', keys)
+    if (itemStruct.poi) console.log('[tiktok-scrape] poi:', JSON.stringify(itemStruct.poi).slice(0, 300))
+    if (itemStruct.anchors) console.log('[tiktok-scrape] anchors:', JSON.stringify(itemStruct.anchors).slice(0, 500))
+  }
+
+  return null
 }
