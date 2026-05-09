@@ -145,7 +145,15 @@ export async function extractSlideshow(url: string): Promise<SlideshowResult> {
           ...imageBlocks,
           {
             type: 'text',
-            text: 'These are slides from a TikTok photo slideshow recommending places to visit. For each slide read every word of visible text — business names, store names, restaurant names, neighborhoods, addresses, captions, text overlays. Write the output as plain sentences, not bullet points or markdown. Example: "Slide 1: Chrome Hearts on Washington Street in the West Village. Slide 2: Acne Studios on Grand Street in SoHo." Be thorough — include every place name you see.',
+            text: `These are slides from a TikTok. Transcribe EVERY word of visible text from each slide exactly as it appears — including performer names, event names, venue names, dates, times, addresses, ticket info, presale info, and all text overlays. Do not interpret or summarize — just read the text.
+
+Format as plain sentences: "Slide 1: [all text verbatim]. Slide 2: [all text verbatim]." etc.
+
+Important notes:
+- Dates like "July_24" mean July 24
+- "b2b" is a DJ format meaning back-to-back (two performers)
+- Include ALL text even if it seems like a caption, hashtag, or ticket detail
+- If a slide is a flyer or event poster, read every line including the small print`,
           },
         ],
       }],

@@ -18,36 +18,47 @@ export interface ParsedEvent {
   confidence: number
 }
 
-const SYSTEM_PROMPT = `You are an assistant that extracts event information from social media content.
+const SYSTEM_PROMPT = `You are an assistant that extracts event information from social media content, including event flyers posted as TikTok or Instagram photo slideshows.
 
-Given text from a TikTok, Instagram, or YouTube post, extract ALL events being featured.
-An event is something happening at a specific venue on a specific date — concert, live show, performance, pop-up, market, party, art opening, comedy night, etc.
+Given text from a post — which may be a transcript, OCR text from slides, or a post caption — extract ALL events.
+An event is something happening at a specific venue on a specific date: concert, DJ set, live show, performance, pop-up, market, party, rave, club night, art opening, comedy night, etc.
 Return ONLY a JSON array — no markdown, no explanation.
 
 Rules:
-- Only extract events with a clear venue AND date. If either is missing, skip it.
-- event_name: name of the event or show (e.g. "Max & Luke Dean Live", "Saturday Night Pop-Up")
-- performer: who is performing or hosting — null if not a performance
-- venue_name: the venue name (e.g. "Brooklyn Storehouse", "Madison Square Garden")
-- city + country: location of the venue
-- event_date: the date as a string (e.g. "May 15, 2026"). If only month/day given, assume year 2026.
-- event_time: time if explicitly mentioned (e.g. "8:00 PM"), null if not mentioned
+- Extract events where both a venue AND a date can be identified.
+- event_name: the name of the event or show. For DJ sets use the performer format (e.g. "Max Dean b2b Luke Dean"). If no specific event name, use "Live at [venue]".
+- performer: who is performing or headlining. For b2b sets include both names (e.g. "Max Dean b2b Luke Dean"). null if not a performance.
+- venue_name: the venue (e.g. "Brooklyn Storehouse", "Madison Square Garden")
+- city + country: infer from context or known venue location
+- event_date: the date as a readable string. Handle ALL of these formats:
+  - "July_24" or "July_24_2026" → "July 24, 2026"
+  - "July 24" → "July 24, 2026"
+  - "7/24" or "7-24" → "July 24, 2026"
+  - If only month/day given, assume year 2026
+- event_time: time if mentioned (e.g. "10:00 PM"), null if not
 - description: one sentence about the event
-- confidence: 0-1. Use < 0.7 if venue or date is unclear
-- Omit any event with confidence < 0.7
+- confidence: 0-1. Use 0.85+ when venue and date are both clearly stated. Use < 0.65 only if both are truly ambiguous.
+- Omit events with confidence < 0.65
 - If no qualifying events found, return []
+
+Common patterns to recognize:
+- Event flyer text: "[Date] / [Venue] / [Performer]" or "[Venue] / [Date]" stacked on a graphic
+- "b2b" = back-to-back DJ set between two performers (e.g. "Max Dean b2b Luke Dean")
+- "ALL NIGHT LONG" = all-night DJ/club event
+- Presale or ticket info confirms it's a real upcoming event
+- "@Brooklyn Storehouse" or "@VenueName" in a caption = the venue
 
 JSON format:
 [
   {
-    "event_name": "Max & Luke Dean Live",
-    "performer": "Max & Luke Dean",
+    "event_name": "Max Dean b2b Luke Dean",
+    "performer": "Max Dean b2b Luke Dean",
     "venue_name": "Brooklyn Storehouse",
     "city": "Brooklyn",
     "country": "United States",
-    "event_date": "May 15, 2026",
-    "event_time": "8:00 PM",
-    "description": "An intimate live performance from rising artists Max and Luke Dean.",
+    "event_date": "July 24, 2026",
+    "event_time": null,
+    "description": "All-night b2b DJ set from UK house music artists Max Dean and Luke Dean at Brooklyn Storehouse.",
     "confidence": 0.92
   }
 ]`
@@ -75,7 +86,7 @@ export async function parseEvents(
   try {
     const parsed = JSON.parse(text)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((e: any) => e.confidence >= 0.7 && e.event_name && e.venue_name) as ParsedEvent[]
+    return parsed.filter((e: any) => e.confidence >= 0.65 && e.event_name && e.venue_name) as ParsedEvent[]
   } catch {
     return []
   }
